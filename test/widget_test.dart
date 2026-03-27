@@ -5,26 +5,31 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:love_forgiveness_app/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('Game starts with welcome message', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify that the welcome text is displayed
+    expect(find.textContaining('Welcome to the Love and Forgiveness Game!'), findsOneWidget);
+    expect(find.text("Yes, let's begin!"), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('Game navigation works', (WidgetTester tester) async {
+    // Build our app and trigger a frame.
+    await tester.pumpWidget(const MyApp());
+
+    // Tap the start button
+    await tester.tap(find.text("Yes, let's begin!"));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify we moved to scene 1
+    expect(find.textContaining('Scene 1: You have a close friend'), findsOneWidget);
+    expect(find.text('A) Confront angrily'), findsOneWidget);
+    expect(find.text('B) Talk calmly'), findsOneWidget);
   });
 }
