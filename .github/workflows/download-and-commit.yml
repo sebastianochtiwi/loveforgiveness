@@ -1,0 +1,27 @@
+name: Download and commit APK
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  download-commit:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Run download-and-commit script
+        shell: pwsh
+        env:
+          CI_DOWNLOAD_TOKEN: ${{ secrets.CI_DOWNLOAD_TOKEN }}
+        run: |
+          pwsh .\apk_download_and_commit.ps1
