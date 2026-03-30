@@ -28,3 +28,9 @@ jobs:
         with:
           name: app-debug-apk
           path: build/app/outputs/flutter-apk/*.apk
+      - name: Create Release and upload APK
+        uses: ncipollo/release-action@v1
+        with:
+          tag: debug-apk-${{ github.run_id }}
+          name: Debug APK ${{ github.run_number }}
+          files: build/app/outputs/flutter-apk/*.apk
