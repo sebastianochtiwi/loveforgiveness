@@ -86,6 +86,60 @@ if ($null -eq $release) {
     }
 }
 
+# If no release was found but we have a RUN_ID, try to download artifacts produced by the run
+if ($null -eq $release -and $runId) {
+    Write-Host "No release found; attempting to fetch artifacts for run $runId"
+    $artifactsUrl = "https://api.github.com/repos/$owner/$repo/actions/runs/$runId/artifacts"
+    $artifactsResp = Get-JsonFromUrl $artifactsUrl
+    if ($null -ne $artifactsResp -and $artifactsResp.artifacts.Count -gt 0) {
+        $artifact = $artifactsResp.artifacts | Where-Object { $_.name -match 'app-debug-apk' } | Select-Object -First 1
+        if ($null -eq $artifact) { $artifact = $artifactsResp.artifacts[0] }
+        $archiveUrl = $artifact.archive_download_url
+        $zipPath = Join-Path -Path (Join-Path -Path $env:TEMP -ChildPath "apk_artifacts") -ChildPath ("$($artifact.id).zip")
+        if (-not (Test-Path (Split-Path $zipPath -Parent))) { New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) | Out-Null }
+        Write-Host "Downloading artifact archive $archiveUrl to $zipPath"
+        try {
+            Invoke-WebRequest -Uri $archiveUrl -OutFile $zipPath -UseBasicParsing -Headers $headers -ErrorAction Stop
+        } catch {
+            Write-Host "Failed to download artifact archive: $_"; exit 1
+        }
+        $tempExtract = Join-Path -Path (Join-Path -Path $env:TEMP -ChildPath "apk_extract_$($artifact.id)") -ChildPath "content"
+        if (Test-Path $tempExtract) { Remove-Item -Recurse -Force $tempExtract }
+        New-Item -ItemType Directory -Path $tempExtract | Out-Null
+        Write-Host "Extracting $zipPath to $tempExtract"
+        try {
+            Expand-Archive -Path $zipPath -DestinationPath $tempExtract -Force
+        } catch {
+            Write-Host "Failed to extract artifact archive: $_"; exit 1
+        }
+        $apkFound = Get-ChildItem -Path $tempExtract -Recurse -Include *.apk | Select-Object -First 1
+        if ($null -ne $apkFound) {
+            $downloadUrl = $null
+            $filename = $apkFound.Name
+            $destDir = Join-Path -Path (Get-Location) -ChildPath 'apkdownload'
+            if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir | Out-Null }
+            $destPath = Join-Path $destDir $filename
+            Copy-Item -Path $apkFound.FullName -Destination $destPath -Force
+            Write-Host "Copied APK to $destPath"
+            # Commit and push
+            git add $destPath
+            git commit -m "chore(apk): add debug APK from CI run $runId" -q
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "git commit failed or nothing to commit. Exit code $LASTEXITCODE"
+            } else {
+                git push origin master
+                if ($LASTEXITCODE -ne 0) { Write-Host "git push failed with exit code $LASTEXITCODE"; exit 1 }
+            }
+            Write-Host "APK downloaded and pushed to repository at $destPath"
+            exit 0
+        } else {
+            Write-Host "No APK found inside artifact archive."
+        }
+    } else {
+        Write-Host "No artifacts found for run $runId"
+    }
+}
+
 $assets = $release.assets
 $asset = $assets | Where-Object { $_.name -match '\.apk$' } | Select-Object -First 1
 if ($null -eq $asset) {

@@ -2,9 +2,6 @@ name: Download and commit APK
 
 on:
   workflow_dispatch: {}
-  push:
-    branches:
-      - master
   workflow_run:
     workflows:
       - "Build Debug APK Only"
@@ -17,6 +14,8 @@ permissions:
 jobs:
   download-commit:
     runs-on: windows-latest
+    env:
+      RUN_ID: ${{ github.event.workflow_run.id }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,9 +23,15 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
+      - name: Print debug info
+        shell: pwsh
+        run: |
+          Write-Host "RUN_ID=$env:RUN_ID"
+
       - name: Run download-and-commit script
         shell: pwsh
         env:
           CI_DOWNLOAD_TOKEN: ${{ secrets.CI_DOWNLOAD_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           pwsh .\apk_download_and_commit.ps1
