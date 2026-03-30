@@ -16,6 +16,7 @@ jobs:
     runs-on: windows-latest
     env:
       RUN_ID: ${{ github.event.workflow_run.id }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
