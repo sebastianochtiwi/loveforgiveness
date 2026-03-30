@@ -28,9 +28,50 @@ jobs:
         with:
           name: app-debug-apk
           path: build/app/outputs/flutter-apk/*.apk
-      - name: Create Release and upload APK
-        uses: ncipollo/release-action@v1
+      - name: Verify APK exists
+        run: |
+          echo "APK directory contents:"
+          ls -la build/app/outputs/flutter-apk || true
+
+      - name: Create GitHub release
+        id: create_release
+        uses: actions/create-release@v1
         with:
-          tag: debug-apk-${{ github.run_id }}
-          name: Debug APK ${{ github.run_number }}
-          files: build/app/outputs/flutter-apk/*.apk
+          tag_name: debug-apk-${{ github.run_id }}
+          release_name: Debug APK ${{ github.run_number }}
+          body: Debug APK from CI run ${{ github.run_id }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload APK to release (with retry)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
+        run: |
+          set -e
+          apk=$(ls build/app/outputs/flutter-apk/*.apk | head -n 1)
+          if [ -z "$apk" ]; then
+            echo "No APK found to upload" >&2
+            exit 1
+          fi
+          asset_name=$(basename "$apk")
+          # upload_url template contains a {?name,label} suffix; strip it
+          upload_url_template="$UPLOAD_URL"
+          upload_url="${upload_url_template%%\{*}?name=${asset_name}"
+          echo "Uploading $asset_name to $upload_url"
+          attempts=0
+          while [ $attempts -lt 3 ]; do
+            attempts=$((attempts+1))
+            echo "Upload attempt $attempts"
+            resp=$(curl -sS -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/vnd.android.package-archive" --data-binary @"$apk" "$upload_url") || true
+            if echo "$resp" | grep -q "browser_download_url"; then
+              echo "Upload succeeded"
+              exit 0
+            fi
+            echo "Upload failed (attempt $attempts): $resp"
+            sleep 2
+          done
+          echo "All upload attempts failed" >&2
+          exit 1
