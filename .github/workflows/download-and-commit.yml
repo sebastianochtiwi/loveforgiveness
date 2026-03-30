@@ -5,6 +5,11 @@ on:
   push:
     branches:
       - master
+  workflow_run:
+    workflows:
+      - "Build Debug APK Only"
+    types:
+      - completed
 
 permissions:
   contents: write
